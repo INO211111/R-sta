@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en" class="motion-pending">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Stop Digging Through Dashboards</title>
+  <meta name="theme-color" content="#000000">
+  <meta name="color-scheme" content="dark">
+  <style>
+    /* ---------- FONTS ---------- */
+    @font-face {
+      font-family: 'Reference Sans';
+      font-weight: 100 900;
+      font-display: swap;
+      src: url('https://fonts.gstatic.com/s/figtree/v5/_Xmz-HUzqDCFdgfMsYiV_F7wfS-Bs_d_QF5ewkEU4HTy.woff2') format('woff2');
+    }
+
+    /* ---------- RESET ---------- */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html, body {
+      overflow: hidden;
+      background: #000;
+      width: 100%;
+      height: 100%;
+      color-scheme: dark;
+    }
+    :root {
+      font-family: "Reference Sans", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    button {
+      cursor: pointer;
+      font-family: inherit;
+      border: none;
+      background: none;
+      color: inherit;
+    }
+    button:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: 3px;
+      border-radius: 4px;
+    }
+
+    /* ---------- VIEWPORT / SCREEN ---------- */
+    .viewport {
+      position: fixed;
+      inset: 0;
+      isolation: isolate;
+      background: #000;
+    }
+    .screen {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      height: 100%;
+      background: #000;
+      overflow: hidden;
+
+      --cta-width: clamp(160px, 17vh, 190px);
+      --cta-height: clamp(40px, 4.2vh, 48px);
+      --primary-control-font-size: clamp(17px, 1.77vh, 19.25px);
+      --control-baseline-shift: clamp(1px, .19vh, 2px);
+    }
+
+    /* ---------- BACKGROUND VIDEO + VIGNETTE ---------- */
+    .background {
+      position: absolute;
+      inset: 0;
+      z-index: -3;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      pointer-events: none;
+      user-select: none;
+    }
+    .screen::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: -2;
+      pointer-events: none;
+      background:
+        linear-gradient(180deg, rgba(0,0,0,.03), transparent 24%, transparent 82%, rgba(0,0,0,.05)),
+        radial-gradient(ellipse at 44% 54%, transparent 30%, rgba(0,0,0,.055) 100%);
+    }
+
+    /* ---------- BOTTOM ROW (CTA + POLL) ---------- */
+    .bottom-row {
+      position: absolute;
+      left: 50%;
+      bottom: clamp(36px, 5.5vh, 68px);
+      transform: translateX(-50%);
+      z-index: 5;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 18px;
+      max-width: calc(100vw - 32px);
+    }
+
+    /* ---------- PRIMARY CTA ---------- */
+    .primary-cta {
+      position: relative;
+      width: var(--cta-width);
+      height: var(--cta-height);
+      border-radius: 8px;
+      background: #fff;
+      color: #111;
+      box-shadow: 0 2px 8px rgba(0,0,0,.45);
+      transition: filter 140ms;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .primary-cta:hover {
+      filter: brightness(1.08);
+    }
+    .primary-cta .label {
+      position: absolute;
+      left: 8.125%;
+      top: 50%;
+      transform: translateY(calc(-50% + var(--control-baseline-shift)));
+      font-weight: 470;
+      letter-spacing: -.3px;
+      font-size: var(--primary-control-font-size);
+      white-space: nowrap;
+    }
+    .primary-cta .arrow-box {
+      position: absolute;
+      right: 3.125%;
+      top: 14.286%;
+      width: 20.625%;
+      height: 71.429%;
+      border-radius: 7px;
+      background: #070909;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .primary-cta .arrow-box svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    /* ---------- POLL PANEL (glass) ---------- */
+    .poll-panel {
+      width: 0;
+      opacity: 0;
+      visibility: hidden;
+      overflow: hidden;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.13);
+      background: linear-gradient(145deg, rgba(24,22,20,.82), rgba(5,12,14,.88));
+      box-shadow:
+        0 2px 10px rgba(0,0,0,.44),
+        0 0 0 3px rgba(255,255,255,.035) inset,
+        0 0 0 1px rgba(0,0,0,.9);
+      backdrop-filter: blur(16px) saturate(108%);
+      -webkit-backdrop-filter: blur(16px) saturate(108%);
+      transition: width 420ms cubic-bezier(.16,1,.3,1),
+                  opacity 320ms cubic-bezier(.16,1,.3,1),
+                  visibility 320ms;
+      flex-shrink: 0;
+      align-self: flex-end;
+    }
+    .poll-panel.open {
+      width: min(340px, calc(100vw - 32px));
+      opacity: 1;
+      visibility: visible;
+    }
+    .poll-inner {
+      padding: 16px 18px 18px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: min(340px, calc(100vw - 32px));
+      box-sizing: border-box;
+    }
+    .poll-question {
+      font-size: 13.5px;
+      font-weight: 430;
+      line-height: 1.35;
+      letter-spacing: -.1px;
+      color: rgba(255,255,255,.92);
+      text-shadow: 0 1px 2px rgba(0,0,0,.5);
+    }
+    .poll-question strong {
+      font-weight: 520;
+      color: #fff;
+    }
+
+    /* ---------- ANONYMITY + BAWEN ROW ---------- */
+    .poll-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 4px 0 2px 0;
+      border-top: 1px solid rgba(255,255,255,.07);
+      margin-top: -2px;
+    }
+    .poll-anon {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11.5px;
+      font-weight: 430;
+      letter-spacing: .1px;
+      color: rgba(255,255,255,.58);
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .poll-anon svg {
+      width: 13px;
+      height: 13px;
+      opacity: .7;
+      flex-shrink: 0;
+      stroke: rgba(255,255,255,.65);
+    }
+    .poll-anon span {
+      line-height: 1.3;
+    }
+    .poll-anon .anon-strong {
+      color: rgba(255,255,255,.85);
+      font-weight: 520;
+    }
+    .poll-bawen {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11.5px;
+      font-weight: 460;
+      letter-spacing: .2px;
+      color: rgba(255,255,255,.45);
+      white-space: nowrap;
+      flex-shrink: 0;
+      padding: 2px 7px;
+      border-radius: 5px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.06);
+      transition: color 180ms, border-color 180ms;
+    }
+    .poll-bawen:hover {
+      color: rgba(255,255,255,.7);
+      border-color: rgba(255,255,255,.12);
+    }
+    .poll-bawen svg {
+      width: 11px;
+      height: 11px;
+      opacity: .55;
+      flex-shrink: 0;
+      stroke: currentColor;
+    }
+
+    .poll-options {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .poll-option {
+      position: relative;
+      width: 100%;
+      height: 38px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.04);
+      overflow: hidden;
+      transition: filter 140ms, border-color 180ms;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      text-align: left;
+    }
+    .poll-option:hover {
+      filter: brightness(1.08);
+    }
+    .poll-option.selected {
+      border-color: rgba(255,255,255,.4);
+    }
+    .poll-option .bar {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 0%;
+      background: linear-gradient(90deg, rgba(255,255,255,.16), rgba(255,255,255,.06));
+      transition: width 620ms cubic-bezier(.22,1,.36,1);
+      pointer-events: none;
+    }
+    .poll-option .opt-row {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      gap: 8px;
+    }
+    .poll-option .opt-label {
+      font-size: 14px;
+      font-weight: 440;
+      letter-spacing: -.2px;
+      color: rgba(255,255,255,.92);
+      white-space: nowrap;
+    }
+    .poll-option .opt-pct {
+      font-size: 13px;
+      font-weight: 460;
+      letter-spacing: -.1px;
+      color: rgba(255,255,255,.72);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .poll-option.selected .opt-label {
+      color: #fff;
+    }
+    .poll-option.selected .opt-pct {
+      color: #fff;
+    }
+    .poll-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 2px;
+    }
+    .poll-count {
+      font-size: 11.5px;
+      font-weight: 400;
+      letter-spacing: .1px;
+      color: rgba(255,255,255,.52);
+      white-space: nowrap;
+    }
+    .poll-thanks {
+      font-size: 12px;
+      font-weight: 440;
+      letter-spacing: -.1px;
+      color: rgba(255,255,255,.8);
+      opacity: 0;
+      transition: opacity 240ms ease;
+      white-space: nowrap;
+    }
+    .poll-thanks.show {
+      opacity: 1;
+    }
+
+    /* ---------- ENTRANCE MOTION ---------- */
+    @keyframes entrance-action {
+      0% { opacity: 0; transform: translateY(8px) scale(.985); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .motion-pending .primary-cta {
+      opacity: 0;
+      transform: translateY(8px) scale(.985);
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .primary-cta { animation: entrance-action 560ms cubic-bezier(.16,1,.3,1) 400ms both; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .motion-pending .primary-cta {
+        opacity: 1;
+        transform: none;
+      }
+    }
+
+    /* ---------- RESPONSIVE ---------- */
+    @media (max-width: 720px) {
+      .bottom-row {
+        flex-direction: column-reverse;
+        align-items: center;
+        gap: 14px;
+        width: calc(100vw - 32px);
+      }
+      .primary-cta {
+        width: clamp(150px, 44vw, 200px);
+        height: 44px;
+      }
+      .primary-cta .label {
+        font-size: 16px;
+      }
+      .poll-panel.open {
+        width: 100%;
+      }
+      .poll-inner {
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 619px) {
+      .screen {
+        --cta-width: clamp(150px, 44vw, 180px);
+        --cta-height: 44px;
+      }
+      .poll-anon span {
+        font-size: 10.5px;
+      }
+      .poll-bawen {
+        font-size: 10.5px;
+        padding: 2px 5px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="viewport">
+    <section class="screen" id="screen">
+      <!-- Background video -->
+      <video class="background" autoplay muted loop playsinline disablepictureinpicture aria-hidden="true">
+        <source src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260808_064556_051587f1-74a1-4336-8c05-4dde3594ed05.mp4" type="video/mp4">
+      </video>
+
+      <!-- Bottom row: CTA + poll -->
+      <div class="bottom-row">
+        <button class="primary-cta" id="vote-btn" type="button" aria-expanded="false" aria-controls="poll-panel">
+          <span class="label">Rösta Nu</span>
+          <span class="arrow-box">
+            <svg viewBox="0 0 14 14" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 7H12"/>
+              <path d="M8 3L12 7L8 11"/>
+            </svg>
+          </span>
+        </button>
+
+        <div class="poll-panel" id="poll-panel" role="region" aria-label="Opinion poll" aria-hidden="true">
+          <div class="poll-inner">
+            <p class="poll-question">
+              Gillar Ni Svenska Lektion med <strong>Patricia Nuila Lärare</strong>?
+            </p>
+
+            <!-- Anonymity + Bawen row -->
+            <div class="poll-meta">
+              <div class="poll-anon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  <path d="M9 12l2 2 4-4"/>
+                </svg>
+                <span><span class="anon-strong">Anonym röstning</span> — dina svar är helt anonyma</span>
+              </div>
+              <div class="poll-bawen" aria-label="Bawen">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                  <line x1="9" y1="9" x2="9.01" y2="9"/>
+                  <line x1="15" y1="9" x2="15.01" y2="9"/>
+                </svg>
+                <span>Bawen</span>
+              </div>
+            </div>
+
+            <div class="poll-options" id="poll-options">
+              <button class="poll-option" type="button" data-option="ja">
+                <span class="bar"></span>
+                <span class="opt-row">
+                  <span class="opt-label">Ja</span>
+                  <span class="opt-pct" data-pct="ja">0%</span>
+                </span>
+              </button>
+              <button class="poll-option" type="button" data-option="nej">
+                <span class="bar"></span>
+                <span class="opt-row">
+                  <span class="opt-label">Nej</span>
+                  <span class="opt-pct" data-pct="nej">0%</span>
+                </span>
+              </button>
+              <button class="poll-option" type="button" data-option="vetej">
+                <span class="bar"></span>
+                <span class="opt-row">
+                  <span class="opt-label">Vet ej</span>
+                  <span class="opt-pct" data-pct="vetej">0%</span>
+                </span>
+              </button>
+            </div>
+
+            <div class="poll-footer">
+              <span class="poll-count" id="poll-count">0 röster</span>
+              <span class="poll-thanks" id="poll-thanks">Tack för din röst!</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function() {
+      /* ---------- Motion pending fallback ---------- */
+      var html = document.documentElement;
+      var motionPending = true;
+      var fallbackTimer = setTimeout(function() {
+        if (motionPending) {
+          html.classList.remove('motion-pending');
+          motionPending = false;
+        }
+      }, 3500);
+
+      var primaryCta = document.querySelector('.primary-cta');
+      if (primaryCta) {
+        primaryCta.addEventListener('animationend', function(e) {
+          if (e.animationName === 'entrance-action') {
+            html.classList.remove('motion-pending');
+            motionPending = false;
+            clearTimeout(fallbackTimer);
+          }
+        });
+      }
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        html.classList.remove('motion-pending');
+        motionPending = false;
+        clearTimeout(fallbackTimer);
+      }
+
+      /* ---------- Poll logic (API-backed) ---------- */
+      var voteBtn = document.getElementById('vote-btn');
+      var pollPanel = document.getElementById('poll-panel');
+      var pollOptions = document.getElementById('poll-options');
+      var pollCount = document.getElementById('poll-count');
+      var pollThanks = document.getElementById('poll-thanks');
+
+      var votes = { ja: 0, nej: 0, vetej: 0 };
+      var userVote = null;
+      var isLoading = false;
+
+      function formatPct(n) {
+        if (!isFinite(n) || n < 0) n = 0;
+        return Math.round(n) + '%';
+      }
+
+      function updateUI(animate, data) {
+        if (data) {
+          votes = data.votes || votes;
+        }
+        var total = votes.ja + votes.nej + votes.vetej;
+
+        var pct = {
+          ja: total > 0 ? (votes.ja / total) * 100 : 0,
+          nej: total > 0 ? (votes.nej / total) * 100 : 0,
+          vetej: total > 0 ? (votes.vetej / total) * 100 : 0
+        };
+
+        ['ja', 'nej', 'vetej'].forEach(function(key) {
+          var optionEl = pollOptions.querySelector('[data-option="' + key + '"]');
+          var barEl = optionEl.querySelector('.bar');
+          var pctEl = optionEl.querySelector('[data-pct="' + key + '"]');
+
+          if (animate) {
+            barEl.style.width = pct[key] + '%';
+          } else {
+            barEl.style.transition = 'none';
+            barEl.style.width = '0%';
+            void barEl.offsetWidth;
+            barEl.style.transition = '';
+            barEl.style.width = pct[key] + '%';
+          }
+
+          pctEl.textContent = formatPct(pct[key]);
+          optionEl.classList.toggle('selected', userVote === key);
+        });
+
+        pollCount.textContent = total + (total === 1 ? ' röst' : ' röster');
+      }
+
+      async function fetchStats() {
+        try {
+          var res = await fetch('/api/stats', { credentials: 'include' });
+          var data = await res.json();
+          if (data.votes) {
+            updateUI(false, data);
+          }
+        } catch (err) {
+          console.error('Failed to fetch stats:', err);
+        }
+      }
+
+      async function fetchMyVote() {
+        try {
+          var res = await fetch('/api/my-vote', { credentials: 'include' });
+          var data = await res.json();
+          if (data.vote) {
+            userVote = data.vote;
+            updateUI(false);
+          }
+        } catch (err) {
+          console.error('Failed to fetch my vote:', err);
+        }
+      }
+
+      async function submitVote(option) {
+        if (isLoading) return;
+        isLoading = true;
+
+        try {
+          var res = await fetch('/api/vote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ option: option })
+          });
+          var data = await res.json();
+          
+          if (data.success) {
+            userVote = data.vote;
+            pollThanks.classList.add('show');
+            setTimeout(function() {
+              pollThanks.classList.remove('show');
+            }, 2200);
+            await fetchStats();
+          } else {
+            alert(data.error || 'Kunde inte registrera röst');
+          }
+        } catch (err) {
+          console.error('Vote error:', err);
+          alert('Något gick fel, försök igen');
+        } finally {
+          isLoading = false;
+        }
+      }
+
+      function openPoll() {
+        if (pollPanel.classList.contains('open')) return;
+        pollPanel.classList.add('open');
+        pollPanel.setAttribute('aria-hidden', 'false');
+        voteBtn.setAttribute('aria-expanded', 'true');
+        setTimeout(function() {
+          updateUI(true);
+        }, 80);
+      }
+
+      function closePoll() {
+        if (!pollPanel.classList.contains('open')) return;
+        pollPanel.classList.remove('open');
+        pollPanel.setAttribute('aria-hidden', 'true');
+        voteBtn.setAttribute('aria-expanded', 'false');
+      }
+
+      voteBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (pollPanel.classList.contains('open')) {
+          closePoll();
+        } else {
+          openPoll();
+        }
+      });
+
+      pollOptions.addEventListener('click', function(e) {
+        var optionEl = e.target.closest('.poll-option');
+        if (!optionEl) return;
+        var key = optionEl.getAttribute('data-option');
+        if (!key) return;
+        submitVote(key);
+      });
+
+      document.addEventListener('pointerdown', function(e) {
+        if (!pollPanel.classList.contains('open')) return;
+        if (!pollPanel.contains(e.target) && !voteBtn.contains(e.target)) {
+          closePoll();
+        }
+      });
+
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && pollPanel.classList.contains('open')) {
+          closePoll();
+          voteBtn.focus();
+        }
+      });
+
+      // Initialize
+      fetchStats();
+      fetchMyVote();
+      updateUI(false);
+    })();
+  </script>
+</body>
+</html>
