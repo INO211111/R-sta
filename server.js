@@ -44,6 +44,10 @@ app.use('/api/', apiLimiter);
 app.use('/api/vote', voteLimiter);
 
 async function initDatabase() {
+  if (!process.env.DATABASE_URL) {
+    console.error('DATABASE_URL is missing - votes will fail');
+    return;
+  }
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS votes (
@@ -183,8 +187,16 @@ app.post('/api/vote/remove', async (req, res) => {
   }
 });
 
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/health', async (req, res) => {
+  let db = 'unknown';
+  try {
+    await pool.query('SELECT 1');
+    db = 'ok';
+  } catch (err) {
+    db = 'error';
+    console.error('Health DB check failed:', err.message);
+  }
+  res.json({ status: 'ok', db, timestamp: new Date().toISOString() });
 });
 
 app.use((err, req, res, next) => {
